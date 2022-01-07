@@ -30,7 +30,5 @@ logging.basicConfig(
     level={0: logging.WARN, 1: logging.INFO}.get(args.verbose, logging.DEBUG)
 )
 
-log = logging.getLogger("pyliza")
-log.info("starting up Pyliza")
 
-pyliza.run(args.script)
+pyliza.run_commandline(args.script)

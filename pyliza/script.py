@@ -3,10 +3,13 @@ import typing
 import random
 import re
 
+from . import rules
+
 
 class ElizaScript:
     def __init__(self, script: typing.Iterable[str]):
         self._greatings = []
+        self._rules = []
         self._parse_script_file(script)
 
     def greet(self) -> str:
@@ -30,8 +33,11 @@ class ElizaScript:
                 self._greatings.append(rule_text)
                 continue
 
-            print(rule_text)
-            print()
+            self._rules.append(rules.ElizaRule(rule_text))
+
+        log.info(
+            f"loaded {len(self._greatings)} greetings and {len(self._rules)} rules."
+        )
 
         if not rules_started:
             raise ValueError(
