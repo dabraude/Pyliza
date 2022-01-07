@@ -9,10 +9,11 @@ class ElizaScript:
         self._greatings = []
         self._parse_script_file(script)
 
-    def greet(self):
+    def greet(self) -> str:
+        """Pick a random greeting from the available options."""
         return random.choice(self._greatings)
 
-    def _parse_script_file(self, script: typing.Iterable[str]):
+    def _parse_script_file(self, script: typing.Iterable[str]) -> None:
         """Convert a script file into a rule set."""
         log = logging.getLogger("script")
         log.info("parsing script file")
@@ -29,12 +30,15 @@ class ElizaScript:
                 self._greatings.append(rule_text)
                 continue
 
+            print(rule_text)
+            print()
+
         if not rules_started:
             raise ValueError(
                 "missing 'START' keyword to indicate the start of the rule set and end of greetings."
             )
 
-    def _strip_script(self, script: typing.Iterable[str]):
+    def _strip_script(self, script: typing.Iterable[str]) -> str:
         """Remove comments and surrounding whitespace."""
         return "\n".join(
             [
@@ -44,30 +48,32 @@ class ElizaScript:
             ]
         )
 
-    def _rule_texts(self, raw_script: str):
+    def _rule_texts(self, raw_script: str) -> str:
         """Generator that iterates through rules."""
         while raw_script:
             raw_rule, end_pos = self._next_raw_rule(raw_script)
             yield raw_rule
             raw_script = raw_script[end_pos:]
 
-    def _next_raw_rule(self, raw_script: str):
+    def _next_raw_rule(self, raw_script: str) -> typing.Tuple[str, int]:
         """Find the next rule in the script text."""
         start_match = re.match(r"\s*?START\s", raw_script)
         if start_match is not None:
             return "START", start_match.span()[1]
+        return self._get_bracketed_text(raw_script)
 
+    def _get_bracketed_text(self, text: str) -> typing.Tuple[str, int]:
         num_open_brackets = 1
-        num_close_brackets = False
-        while num_open_brackets != num_close_brackets:
-            pattern = r"\s*\((.*?\))" + f"{{{num_open_brackets}}}"
-            open_to_close = re.match(pattern, raw_script, re.DOTALL)
-            if open_to_close is None:
+        num_brackets_to_close = False
+        while num_open_brackets != num_brackets_to_close:
+            num_brackets_to_close = num_open_brackets
+            pattern = r"\s*\((.*?\))" + f"{{{num_brackets_to_close}}}" + r"\s*"
+            first_open_to_final_close = re.match(pattern, text, re.DOTALL)
+            if first_open_to_final_close is None:
                 raise ValueError(
                     "mismatching amount of brackets, or string does not start with an open bracket."
                 )
-            end_pos = open_to_close.span()[1]
-            matched_area = raw_script[:end_pos]
+            end_pos = first_open_to_final_close.span()[1]
+            matched_area = text[:end_pos]
             num_open_brackets = matched_area.count("(")
-            num_close_brackets = matched_area.count(")")
         return matched_area.strip(), end_pos
