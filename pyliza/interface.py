@@ -4,4 +4,4 @@ from . import script
 
 
 def run(script_text: typing.Iterable[str]):
-    liza_script = script.parse_script_file(script_text)
+    liza_script = script.ElizaScript(script_text)
