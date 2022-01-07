@@ -21,7 +21,7 @@ parser.add_argument(
     "-v",
     "--verbose",
     action="count",
-    default=2,
+    default=0,
     help="Increase verbostity",
 )
 args = parser.parse_args()
