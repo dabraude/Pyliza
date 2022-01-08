@@ -3,18 +3,22 @@ import typing
 import random
 import re
 
-from . import rules
+from . import rules, utils
 
 
-class ElizaScript:
+class Eliza:
     def __init__(self, script: typing.Iterable[str]):
-        self._greatings = []
-        self._rules = []
+        self._greatings: typing.List[str] = []
+        self._rules: typing.Mapping[str, rules.ElizaRule] = {}
         self._parse_script_file(script)
 
     def greet(self) -> str:
         """Pick a random greeting from the available options."""
         return random.choice(self._greatings)
+
+    def respond_to(self, user_input: str) -> str:
+        user_input = user_input.upper()
+        return user_input.strip() + "\n"
 
     def _parse_script_file(self, script: typing.Iterable[str]) -> None:
         """Convert a script file into a rule set."""
@@ -30,10 +34,10 @@ class ElizaScript:
             # greetings.
             if not rules_started:
                 rule_text = rule_text[1:-1]
-                self._greatings.append(rule_text)
+                self._greatings.append(rule_text + "\n")
                 continue
-
-            self._rules.append(rules.ElizaRule(rule_text))
+            keyword, rule = rules.parse_rule_text(rule_text)
+            self._rules[keyword] = rule
 
         log.info(
             f"loaded {len(self._greatings)} greetings and {len(self._rules)} rules."
@@ -66,20 +70,4 @@ class ElizaScript:
         start_match = re.match(r"\s*?START\s", raw_script)
         if start_match is not None:
             return "START", start_match.span()[1]
-        return self._get_bracketed_text(raw_script)
-
-    def _get_bracketed_text(self, text: str) -> typing.Tuple[str, int]:
-        num_open_brackets = 1
-        num_brackets_to_close = False
-        while num_open_brackets != num_brackets_to_close:
-            num_brackets_to_close = num_open_brackets
-            pattern = r"\s*\((.*?\))" + f"{{{num_brackets_to_close}}}" + r"\s*"
-            first_open_to_final_close = re.match(pattern, text, re.DOTALL)
-            if first_open_to_final_close is None:
-                raise ValueError(
-                    "mismatching amount of brackets, or string does not start with an open bracket."
-                )
-            end_pos = first_open_to_final_close.span()[1]
-            matched_area = text[:end_pos]
-            num_open_brackets = matched_area.count("(")
-        return matched_area.strip(), end_pos
+        return utils.get_bracketed_text(raw_script)
