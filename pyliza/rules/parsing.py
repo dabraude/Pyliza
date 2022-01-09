@@ -1,33 +1,13 @@
-import enum
 import logging
 import re
 import typing
 
 from .. import utils
-from .logic import RuleSet
+from . import logic
+from .logic import RuleSet, RuleType, ElizaRule
 
 
-class RuleType(enum.Enum):
-    NONE = -1
-    UNKNOWN = 0
-    TRANSFORMATION = 1
-    UNCONDITIONAL_SUBSTITUTION = 2
-    DLIST = 3
-    EQUIVALENCE = 4
-    PRE_TRANSFORM_EQUIVALENCE = 5
-    MEMORY = 6
-
-
-class ElizaRule:
-    def __init__(self, precidence=0) -> None:
-        self._precedence: int = int(precidence)
-
-    @property
-    def precedence(self) -> int:
-        return self._precedence
-
-
-class RuleParser:
+class ScriptParser:
     keyword_fixed_rule_types = {"NONE": RuleType.NONE, "MEMORY": RuleType.MEMORY}
     regex_sub_precedence = re.compile(r"\s*(=\s*(?P<sub>\S+))?\s*(?P<prec>\d+)?\s*")
     regex_dlist_check = re.compile(r"DLIST\(\s*/")
@@ -116,16 +96,19 @@ class RuleParser:
         substitution, precedence, instructions = cls._get_substitution_and_precedence(
             instructions
         )
-        if rule_type is None:
+        if rule_type == RuleType.UNKNOWN:
             rule_type = cls._determine_rule_type(substitution, instructions)
 
+        rule = cls._parse_rule_instructions(
+            substitution, precedence, rule_type, instructions
+        )
         log.info(f"parsed rule for keyword '{keyword}' of type {rule_type.name}")
-        return keyword, ElizaRule(precedence)
+        return keyword, rule
 
     @classmethod
-    def _check_for_fixed_rule_type(cls, keyword) -> typing.Optional[RuleType]:
+    def _check_for_fixed_rule_type(cls, keyword) -> RuleType:
         """Check if the keyword is reserved."""
-        return cls.keyword_fixed_rule_types.get(keyword)
+        return cls.keyword_fixed_rule_types.get(keyword, RuleType.UNKNOWN)
 
     @classmethod
     def _get_substitution_and_precedence(
@@ -161,3 +144,52 @@ class RuleParser:
         ):
             return RuleType.PRE_TRANSFORM_EQUIVALENCE
         return RuleType.TRANSFORMATION
+
+    @classmethod
+    def _parse_rule_instructions(
+        cls,
+        substitution: typing.Optional[str],
+        precedence: int,
+        rule_type: RuleType,
+        instructions: str,
+    ) -> ElizaRule:
+        instruction_parsers = {
+            RuleType.NONE: _RuleInstructionParser,
+            RuleType.TRANSFORMATION: _RuleInstructionParser,
+            RuleType.UNCONDITIONAL_SUBSTITUTION: UnconditionalSubstitutionParser,
+            RuleType.DLIST: _RuleInstructionParser,
+            RuleType.EQUIVALENCE: EquivalenceParser,
+            RuleType.PRE_TRANSFORM_EQUIVALENCE: _RuleInstructionParser,
+            RuleType.MEMORY: _RuleInstructionParser,
+        }
+        rule = instruction_parsers[rule_type].parse_instruction_text(
+            substitution, precedence, instructions
+        )
+        return rule
+
+
+class _RuleInstructionParser:
+    @classmethod
+    def parse_instruction_text(
+        cls, substitution, precedence, instructions
+    ) -> ElizaRule:
+        return ElizaRule(substitution, precedence)
+        raise NotImplementedError("need to implement parse_instruction_text")
+
+
+class EquivalenceParser(_RuleInstructionParser):
+    regex_equivalence = ScriptParser.regex_equivalence
+
+    @classmethod
+    def parse_instruction_text(
+        cls, substitution, precedence, instructions
+    ) -> ElizaRule:
+        mobj = cls.regex_equivalence.match(instructions)
+        equivalent_keyword = mobj.group("eqv")
+        return logic.Equivalence(substitution, precedence, equivalent_keyword)
+
+
+class UnconditionalSubstitutionParser(_RuleInstructionParser):
+    @classmethod
+    def parse_instruction_text(cls, substitution, precedence, _) -> ElizaRule:
+        return logic.UnconditionalSubstitution(substitution, precedence)

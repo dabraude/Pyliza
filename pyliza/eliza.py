@@ -22,4 +22,4 @@ class Eliza:
 
     def _parse_script_file(self, script: typing.Iterable[str]) -> None:
         """Convert a script file into a rule set."""
-        self._rule_set = rules.RuleParser.parse_rule_file(script)
+        self._rule_set = rules.ScriptParser.parse_rule_file(script)
