@@ -13,7 +13,7 @@ def get_bracketed_text(text: str) -> typing.Tuple[str, int]:
             raise ValueError(
                 "mismatching amount of brackets, or string does not start with an open bracket."
             )
-        end_pos = first_open_to_final_close.span()[1]
+        end_pos = first_open_to_final_close.end()
         matched_area = text[:end_pos]
         num_open_brackets = matched_area.count("(")
     return matched_area.strip(), end_pos
