@@ -41,3 +41,8 @@ def bracket_iter(text: str, strip_brackets: bool = True) -> str:
 def split_brackets(text: str, strip_brackets: bool = True):
     """Breaks up text by brackets."""
     return [brack_text for brack_text in bracket_iter(text, strip_brackets)]
+
+
+def split_phrases(text: str):
+    """Goes through text phrase by phrase."""
+    return list(map(str.strip, re.split(r"([?!.,-;]+)", text)))
