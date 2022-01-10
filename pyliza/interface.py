@@ -1,21 +1,32 @@
 import logging
 import typing
 
-from . import eliza
+from .eliza import Eliza
+
+
+def simulate(script: typing.Iterable[str], conversation: typing.Iterable[str]):
+    """Run through a prerecorded conversation."""
+    log = logging.getLogger("pyliza")
+    log.info("starting up Pyliza conversation simulator")
+
+    eliza = Eliza(script)
+    eliza.greet()
+    for line in map(str.strip, conversation):
+        if not line or line.startswith("#"):
+            continue
+        print(eliza.respond_to(line), end="")
 
 
 def run_commandline(script: typing.Iterable[str]):
     log = logging.getLogger("pyliza")
     log.info("starting up Pyliza command line")
 
-    cmd_eliza = eliza.Eliza(script)
+    eliza = Eliza(script)
 
     try:
-        cmd_eliza.respond_to("Hello I'm sad.")
-        # user_response = input(cmd_eliza.greet())
-        # cmd_eliza.respond_to("Hello I'm sad.")
-        # while True:
-        #     user_response = input(cmd_eliza.respond_to(user_response))
+        user_response = input(eliza.greet())
+        while True:
+            user_response = input(eliza.respond_to(user_response))
     except (KeyboardInterrupt, EOFError):
         print("GOODBYE")
         exit()

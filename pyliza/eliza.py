@@ -29,7 +29,7 @@ class Eliza:
         for phrase in utils.split_phrases(u_input):
             if not self._rule_set.check_for_keyword(phrase):
                 continue
-            print(phrase)
+            # print(phrase)
             break
 
         response = u_input
