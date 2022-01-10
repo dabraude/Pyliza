@@ -1,8 +1,11 @@
+import copy
 import re
 import typing
 
 
-def get_bracketed_text(text: str) -> typing.Tuple[str, int]:
+def get_bracketed_text(
+    text: str, strip_brackets: bool = False
+) -> typing.Tuple[str, int]:
     num_open_brackets = 1
     num_brackets_to_close = False
     while num_open_brackets != num_brackets_to_close:
@@ -16,4 +19,15 @@ def get_bracketed_text(text: str) -> typing.Tuple[str, int]:
         end_pos = first_open_to_final_close.end()
         matched_area = text[:end_pos]
         num_open_brackets = matched_area.count("(")
-    return matched_area.strip(), end_pos
+    matched_area = matched_area.strip()
+    if strip_brackets:
+        matched_area = matched_area[1:-1].strip()
+    return matched_area, end_pos
+
+
+def bracket_iter(text: str, strip_brackets: bool = False) -> str:
+    remaining = copy.copy(text)
+    while remaining:
+        bracketed_text, end_pos = get_bracketed_text(remaining, strip_brackets)
+        yield bracketed_text
+        remaining = remaining[end_pos:]

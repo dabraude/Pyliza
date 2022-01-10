@@ -27,6 +27,25 @@ class ElizaRule:
         return self._substitution
 
 
+class Decomposition:
+    def __init__(self):
+        pass
+
+
+class Reassembly:
+    def __init__(self):
+        pass
+
+
+class UnconditionalSubstitution(ElizaRule):
+    def __init__(self, substitution: str, precedence: int) -> None:
+        super().__init__(substitution, precedence)
+        if not isinstance(self.substitution, str):
+            raise ValueError(
+                "substitution must be a string for Unconditional Substitution Rule"
+            )
+
+
 class Equivalence(ElizaRule):
     def __init__(
         self, substitution: None, precedence: int, equivalent_keyword: str
@@ -37,13 +56,20 @@ class Equivalence(ElizaRule):
             raise ValueError("equivalent_keyword must be a string for Equivalence Rule")
 
 
-class UnconditionalSubstitution(ElizaRule):
-    def __init__(self, substitution: str, precedence: int) -> None:
+class Memory(ElizaRule):
+    def __init__(
+        self,
+        substitution: None,
+        precedence: int,
+        memories: typing.Iterable[typing.Tuple[Decomposition, Reassembly]],
+    ) -> None:
         super().__init__(substitution, precedence)
-        if not isinstance(self.substitution, str):
-            raise ValueError(
-                "substitution must be a string for Unconditional Substitution Rule"
-            )
+        self._memories = memories
+        for (dec, rss) in self._memories:
+            if not isinstance(dec, Decomposition) or not isinstance(rss, Reassembly):
+                raise ValueError(
+                    "memories must be a list of tuples, (Decomposition, Reassembly)"
+                )
 
 
 class RuleSet:
