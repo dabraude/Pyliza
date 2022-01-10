@@ -9,7 +9,8 @@ class RuleType(enum.Enum):
     UNCONDITIONAL_SUBSTITUTION = 2
     DLIST = 3
     EQUIVALENCE = 4
-    PRE_TRANSFORM_EQUIVALENCE = 5
+    # rule type 5: pre transform equivalence is actually just a vanilla transform
+    # with a special reassambly rule
     MEMORY = 6
 
 
@@ -37,6 +38,19 @@ class Reassembly:
         pass
 
 
+class Transformation(ElizaRule):
+    def __init__(
+        self,
+        substitution: typing.Optional[str],
+        precedence: int,
+        transformation_rules: typing.Iterable[
+            typing.Tuple[Decomposition, typing.Iterable[Reassembly]]
+        ],
+    ) -> None:
+        super().__init__(substitution, precedence)
+        self._transformation_rules = transformation_rules
+
+
 class UnconditionalSubstitution(ElizaRule):
     def __init__(self, substitution: str, precedence: int) -> None:
         super().__init__(substitution, precedence)
@@ -44,6 +58,17 @@ class UnconditionalSubstitution(ElizaRule):
             raise ValueError(
                 "substitution must be a string for Unconditional Substitution Rule"
             )
+
+
+class DList(ElizaRule):
+    def __init__(
+        self,
+        substitution: typing.Optional[str],
+        precedence: int,
+        dlist: typing.Iterable[str],
+    ) -> None:
+        super().__init__(substitution, precedence)
+        self._dlist = dlist
 
 
 class Equivalence(ElizaRule):

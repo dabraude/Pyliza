@@ -4,8 +4,12 @@ import typing
 
 
 def get_bracketed_text(
-    text: str, strip_brackets: bool = False
+    text: str, strip_brackets: bool = True
 ) -> typing.Tuple[str, int]:
+    """Gets a text incased in brackets.
+
+    @returns: text in the bracket, end position of the text
+    """
     num_open_brackets = 1
     num_brackets_to_close = False
     while num_open_brackets != num_brackets_to_close:
@@ -25,9 +29,15 @@ def get_bracketed_text(
     return matched_area, end_pos
 
 
-def bracket_iter(text: str, strip_brackets: bool = False) -> str:
+def bracket_iter(text: str, strip_brackets: bool = True) -> str:
+    """Iterator for going over a list of bracketed text."""
     remaining = copy.copy(text)
     while remaining:
         bracketed_text, end_pos = get_bracketed_text(remaining, strip_brackets)
         yield bracketed_text
         remaining = remaining[end_pos:]
+
+
+def split_brackets(text: str, strip_brackets: bool = True):
+    """Breaks up text by brackets."""
+    return [brack_text for brack_text in bracket_iter(text, strip_brackets)]

@@ -43,17 +43,14 @@ class ScriptParser:
     def _parse_greetings(cls, greetings_text: str) -> typing.List[str]:
         """Retrieves all the greetings."""
         greetings_text = greetings_text.strip()
-        greetings = [
-            greet + "\n"
-            for greet in utils.bracket_iter(greetings_text, strip_brackets=True)
-        ]
+        greetings = [greet + "\n" for greet in utils.bracket_iter(greetings_text)]
         return greetings
 
     @classmethod
     def _parse_rules(cls, rules_text: str) -> typing.Mapping[str, ElizaRule]:
         """Parse the text of the rules."""
         rules = {}
-        for rule_text in utils.bracket_iter(rules_text, strip_brackets=True):
+        for rule_text in utils.bracket_iter(rules_text):
             keyword, rule = RuleParser.parse_rule(rule_text)
             rules[keyword] = rule
         return rules
@@ -68,9 +65,6 @@ class RuleParser:
     sub_split_re = re.compile(r"(\S+)(.*)", flags=re.DOTALL)
     dlist_re = re.compile(r"DLIST\(\s*/")
     equivalence_re = re.compile(r"\(\s*=\s*(?P<eqv>\S+?)\s*\)$")
-    pre_transform_equivalence_re = re.compile(
-        r"\(\s*PRE\s+\(.*?\)\s*\(\s*=\s*(?P<eqv>\S+)\)\s*\)\s*\)$", flags=re.DOTALL
-    )
 
     @classmethod
     def parse_rule(cls, rule_text) -> Tuple[str, ElizaRule]:
@@ -104,7 +98,7 @@ class RuleParser:
 
         rule_text = rule_text[1:].lstrip()
         if rule_text.startswith("("):
-            substitution, endpos = utils.get_bracketed_text(rule_text)
+            substitution, endpos = utils.get_bracketed_text(rule_text, False)
             rule_text = rule_text[endpos:]
         else:
             substitution, rule_text = cls.sub_split_re.match(rule_text).groups()
@@ -125,12 +119,11 @@ class RuleParser:
         rule_type = cls._determine_rule_type(rule_type, substitution, rule_text)
         cls.log.info(f"rule type set to {rule_type.name}")
         instruction_parsers = {
-            RuleType.NONE: _RuleInstructionParser,
-            RuleType.TRANSFORMATION: _RuleInstructionParser,
+            RuleType.NONE: TransformationParser,
+            RuleType.TRANSFORMATION: TransformationParser,
             RuleType.UNCONDITIONAL_SUBSTITUTION: UnconditionalSubstitutionParser,
-            RuleType.DLIST: _RuleInstructionParser,
+            RuleType.DLIST: DListParser,
             RuleType.EQUIVALENCE: EquivalenceParser,
-            RuleType.PRE_TRANSFORM_EQUIVALENCE: _RuleInstructionParser,
             RuleType.MEMORY: MemoryParser,
         }
         rule = instruction_parsers[rule_type].parse_instruction_text(
@@ -151,22 +144,18 @@ class RuleParser:
             return RuleType.DLIST
         if cls.equivalence_re.match(instructions):
             return RuleType.EQUIVALENCE
-        if cls.pre_transform_equivalence_re.search(
-            instructions,
-        ):
-            return RuleType.PRE_TRANSFORM_EQUIVALENCE
         return RuleType.TRANSFORMATION
 
 
 class DecompositionParser:
     @classmethod
-    def parse_decomposition_rule(cls, text):
+    def parse(cls, text) -> logic.Decomposition:
         return logic.Decomposition()
 
 
 class ReassemblyParser:
     @classmethod
-    def parse_reassembly_rule(cls, text):
+    def parse(cls, text) -> logic.Reassembly:
         return logic.Reassembly()
 
 
@@ -175,20 +164,24 @@ class _RuleInstructionParser:
     def parse_instruction_text(
         cls, substitution, precedence, instructions
     ) -> ElizaRule:
-        return ElizaRule(substitution, precedence)
         raise NotImplementedError("need to implement parse_instruction_text")
 
+
+class TransformationParser(_RuleInstructionParser):
     @classmethod
-    def _parse_decomposition_pattern(
-        cls, decomposition_pattern: str
-    ) -> logic.Decomposition:
-        return logic.Decomposition()
-
-
-# class TransformationParser(_RuleInstructionParser):
-#     @classmethod
-#     def parse_instruction_text(cls, substitution, precedence, _) -> ElizaRule:
-#         return logic.UnconditionalSubstitution(substitution, precedence)
+    def parse_instruction_text(
+        cls, substitution, precedence, instructions
+    ) -> ElizaRule:
+        transformation_rules = []
+        for transformation in utils.bracket_iter(instructions):
+            decomp, *reassem = utils.split_brackets(transformation)
+            transformation_rules.append(
+                (
+                    DecompositionParser.parse(decomp),
+                    list(map(ReassemblyParser.parse, reassem)),
+                )
+            )
+        return logic.Transformation(substitution, precedence, transformation_rules)
 
 
 class UnconditionalSubstitutionParser(_RuleInstructionParser):
@@ -197,7 +190,17 @@ class UnconditionalSubstitutionParser(_RuleInstructionParser):
         return logic.UnconditionalSubstitution(substitution, precedence)
 
 
-# RuleType.DLIST: _RuleInstructionParser,
+class DListParser(_RuleInstructionParser):
+    dlist_re = re.compile(r"\s*DLIST\(/")
+
+    @classmethod
+    def parse_instruction_text(
+        cls, substitution, precedence, instructions
+    ) -> ElizaRule:
+        instructions = cls.dlist_re.sub("", instructions)[:-1].strip()
+        dlist = instructions.split()
+        print(dlist)
+        return logic.DList(substitution, precedence, dlist)
 
 
 class EquivalenceParser(_RuleInstructionParser):
@@ -223,9 +226,7 @@ class MemoryParser(_RuleInstructionParser):
         memories = []
         for memory_pattern in utils.bracket_iter(instructions):
             decomposition_text, reassembly_text = memory_pattern.split("=")
-            decomposition = DecompositionParser.parse_decomposition_rule(
-                decomposition_text
-            )
-            reassembly = ReassemblyParser.parse_reassembly_rule(reassembly_text)
+            decomposition = DecompositionParser.parse(decomposition_text)
+            reassembly = ReassemblyParser.parse(reassembly_text)
             memories.append((decomposition, reassembly))
         return logic.Memory(substitution, precedence, memories)
