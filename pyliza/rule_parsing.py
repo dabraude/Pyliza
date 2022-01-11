@@ -3,9 +3,10 @@ import re
 import typing
 from typing import Optional, Tuple
 
-from .. import utils
-from . import logic
-from .logic import RuleSet, RuleType, ElizaRule, DecompositionRule
+from . import utils
+from . import ruleset
+from .ruleset import RuleSet, RuleType, ElizaRule
+from .transformation import TransformRule, DecompositionRule, ReassemblyRule
 
 
 class ScriptParser:
@@ -147,8 +148,8 @@ class RuleParser:
 
 class DecompositionParser:
     @classmethod
-    def parse(cls, text) -> logic.DecompositionRule:
-        return logic.DecompositionRule(list(cls._parts(text)))
+    def parse(cls, text) -> DecompositionRule:
+        return DecompositionRule(list(cls._parts(text)))
 
     @classmethod
     def _parts(cls, text):
@@ -181,8 +182,8 @@ class DecompositionParser:
 
 class ReassemblyParser:
     @classmethod
-    def parse(cls, text) -> logic.Reassembly:
-        return logic.Reassembly()
+    def parse(cls, text) -> ReassemblyRule:
+        return ruleset.ReassemblyRule()
 
 
 class _RuleInstructionParser:
@@ -200,19 +201,19 @@ class TransformationParser(_RuleInstructionParser):
         for transformation in utils.bracket_iter(instructions):
             decomp, *reassem = utils.split_brackets(transformation)
             transformation_rules.append(
-                (
+                TransformRule(
                     DecompositionParser.parse(decomp),
                     list(map(ReassemblyParser.parse, reassem)),
                 )
             )
         cls.log.debug(f"found {len(transformation_rules)} transformation rules")
-        return logic.Transformation(substitution, precedence, transformation_rules)
+        return ruleset.Transformation(substitution, precedence, transformation_rules)
 
 
 class UnconditionalSubstitutionParser(_RuleInstructionParser):
     @classmethod
     def parse(cls, substitution, precedence, _) -> ElizaRule:
-        return logic.UnconditionalSubstitution(substitution, precedence)
+        return ruleset.UnconditionalSubstitution(substitution, precedence)
 
 
 class DListParser(_RuleInstructionParser):
@@ -222,7 +223,7 @@ class DListParser(_RuleInstructionParser):
     def parse(cls, substitution, precedence, instructions) -> ElizaRule:
         instructions = cls.dlist_re.sub("", instructions)[:-1].strip()
         dlist = instructions.split()
-        return logic.DList(substitution, precedence, dlist)
+        return ruleset.TagWord(substitution, precedence, dlist)
 
 
 class EquivalenceParser(_RuleInstructionParser):
@@ -232,7 +233,7 @@ class EquivalenceParser(_RuleInstructionParser):
     def parse(cls, substitution, precedence, instructions) -> ElizaRule:
         mobj = cls.equivalence_re.match(instructions)
         equivalent_keyword = mobj.group("eqv")
-        return logic.Equivalence(substitution, precedence, equivalent_keyword)
+        return ruleset.Equivalence(substitution, precedence, equivalent_keyword)
 
 
 class MemoryParser(_RuleInstructionParser):
@@ -244,4 +245,4 @@ class MemoryParser(_RuleInstructionParser):
             decomposition = DecompositionParser.parse(decomposition_text)
             reassembly = ReassemblyParser.parse(reassembly_text)
             memories.append((decomposition, reassembly))
-        return logic.Memory(substitution, precedence, memories)
+        return ruleset.Memory(substitution, precedence, memories)

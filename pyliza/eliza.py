@@ -3,7 +3,7 @@ import typing
 import random
 import re
 
-from . import rules
+from .rule_parsing import ScriptParser
 from . import utils
 
 
@@ -14,7 +14,7 @@ class Eliza:
     rev_memory_re = re.compile("(^|\s)zMEMORY(\s|$)")
 
     def __init__(self, script: typing.Iterable[str]):
-        self._rule_set = rules.ScriptParser.parse(script)
+        self._rule_set = ScriptParser.parse(script)
 
     def greet(self) -> str:
         """Pick a random greeting from the available options."""
@@ -27,12 +27,12 @@ class Eliza:
 
         response = None
         for phrase in utils.split_phrases(u_input):
-            if not self._rule_set.check_for_keyword(phrase):
-                continue
-            # print(phrase)
-            break
+            response = self._rule_set.get_response_for(phrase)
+            if response is not None:
+                break
 
-        response = u_input
+        if response is None:
+            response = self._rule_set.get_no_keyword_reponse()
 
         return self._finalise_response(response)
 

@@ -45,4 +45,15 @@ def split_brackets(text: str, strip_brackets: bool = True):
 
 def split_phrases(text: str):
     """Goes through text phrase by phrase."""
-    return list(map(str.strip, re.split(r"([?!.,-;]+)", text)))
+    punc_re = re.compile(r"([?!.,-;]+)")
+    phrases = []
+
+    for part in map(str.strip, punc_re.split(text)):
+        if not part:
+            continue
+        # if phrases and punc_re.match(part) is not None:
+        #     phrases[-1] += " " + part
+        #     continue
+        phrases.append(part)
+
+    return phrases

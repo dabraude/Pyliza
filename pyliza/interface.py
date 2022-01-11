@@ -14,6 +14,7 @@ def simulate(script: typing.Iterable[str], conversation: typing.Iterable[str]):
     for line in map(str.strip, conversation):
         if not line or line.startswith("#"):
             continue
+        print(line)
         print(eliza.respond_to(line), end="")
 
 
