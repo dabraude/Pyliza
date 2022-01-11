@@ -60,15 +60,23 @@ class Transformation(ElizaRule):
 
     def apply_transform(self, word, phrase):
         linked_rule = None
-        self._log.debug(f"applying transform triggered by keyword: {word}")
+        self._log.info(f"applying transform triggered by keyword: {word}")
+        self._log.debug(f"finding decomposition for {phrase}")
         for trule in self._transformation_rules:
+            self._log.debug(
+                f"attempting to match against decomposition rule: {trule.decompose}"
+            )
             decomposed = trule.decompose.match(phrase)
             if decomposed is not None:
                 reassembly = random.choice(trule.reassemble)
-                self._log.debug(f"applying reassembly rule: {reassembly}")
                 linked_rule, phrase = reassembly.apply(decomposed)
-                break
-
+                self._log.debug(
+                    f"applied reassembly rule: {reassembly}\n\tphrase is now: {phrase}"
+                )
+                if linked_rule:
+                    self._log.debug(f"reassembly rule linked to: {linked_rule}")
+                return linked_rule, phrase
+        self._log.debug("no decomposition rules matched, word may have been removed")
         return linked_rule, phrase
 
 
@@ -93,7 +101,7 @@ class TagWord(ElizaRule):
 
     def tag_word(self, word: ProcessingWord):
         word.tags = self._dlist[:]
-        self._log.debug(f"tagged word is now {word}")
+        self._log.info(f"tagged word is now {word}")
 
 
 class Equivalence(ElizaRule):
@@ -108,9 +116,7 @@ class Equivalence(ElizaRule):
         self.equivalent_keyword = ProcessingWord(equivalent_keyword)
 
     def apply_transform(self, word, phrase):
-        self._log.debug(
-            f"replacing rule for {word} with rule for {self.equivalent_keyword}"
-        )
+
         return self.equivalent_keyword, phrase
 
 
@@ -130,6 +136,12 @@ class Memory(ElizaRule):
                 raise ValueError(
                     "memories must be a list of tuples, (DecompositionRule, ReassemblyRule)"
                 )
+
+    def apply_transform(
+        self, word: ProcessingWord, phrase: ProcessingPhrase
+    ) -> typing.Tuple[typing.Optional[str], ProcessingPhrase]:
+        self._log.info("adding to memory")
+        return None, None
 
 
 @dataclasses.dataclass
@@ -209,6 +221,9 @@ class RuleSet:
             if linked_rule_key is not None:
                 linked_rule = self.rules.get(linked_rule_key)
                 if linked_rule is not None:
+                    self._log.info(
+                        f"replacing rule for {top.word} with rule for {linked_rule_key}"
+                    )
                     top.rule = linked_rule
                     keystack.insert(0, top)
                 else:

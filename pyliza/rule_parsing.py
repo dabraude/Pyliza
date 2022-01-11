@@ -182,19 +182,18 @@ class DecompositionParser:
 class ReassemblyParser:
     rule_re = re.compile(r"(\d)")
     linkage_re = re.compile(r"=\S+")
-    transform_linkage_re = re.compile(r"PRE\s.*?\(=\S+\)$")
+    transform_linkage_re = re.compile(r"PRE\s+\((?P<assem>.*?)\)\s+\(=(?P<link>\S+)\)$")
 
     @classmethod
     def parse(cls, text) -> ReassemblyRule:
         if cls.linkage_re.match(text):
-            return transformation.SimpleLinkReassemblyRule(text[1:])
+            return cls._parse_link(text)
         if cls.transform_linkage_re.match(text):
-            return transformation.TransFormLinkReassemblyRule(text)
-
+            return cls._parse_transform_link(text)
         return cls._parse_standard(text)
 
     @classmethod
-    def _parse_standard(cls, text):
+    def _parse_reassembly_rule(cls, text):
         def _convert(part):
             try:
                 return int(part)
@@ -204,7 +203,23 @@ class ReassemblyParser:
         assembly_parts = list(
             map(_convert, filter(len, map(str.strip, cls.rule_re.split(text))))
         )
-        return ruleset.ReassemblyRule(assembly_parts)
+        return assembly_parts
+
+    @classmethod
+    def _parse_standard(cls, text):
+        assembly_parts = cls._parse_reassembly_rule(text)
+        return ruleset.ReassemblyRule(assembly_parts, None)
+
+    @classmethod
+    def _parse_link(cls, text):
+        return transformation.ReassemblyRule(None, processing.ProcessingWord(text[1:]))
+
+    @classmethod
+    def _parse_transform_link(cls, text):
+        rule = cls.transform_linkage_re.match(text)
+        assembly = cls._parse_reassembly_rule(rule.group("assem"))
+        link = processing.ProcessingWord(rule.group("link"))
+        return transformation.ReassemblyRule(assembly, link)
 
 
 class _RuleInstructionParser:

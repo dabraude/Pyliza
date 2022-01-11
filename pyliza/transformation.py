@@ -30,7 +30,7 @@ class DecompositionRule:
                 break
         if len(decomposed) == len(self._parts):
             self._log.debug(
-                f"matched decomposition rule: {self}\nphrase is now: "
+                f"matched decomposition rule: {self}\n\tphrase is now: "
                 + " | ".join([f"{d}" for d in decomposed])
             )
             return decomposed
@@ -61,8 +61,10 @@ class DecompositionRule:
             decomposed.append([word])
             remaining_parts.pop(0)
             if remaining_parts:
-                decomposed.append([])
-                return remaining_parts.pop(0)
+                match_part = remaining_parts.pop(0)
+                if isinstance(match_part, int):
+                    decomposed.append([])
+                return match_part
             return None
 
         decomposed[-1].append(word)
@@ -80,12 +82,17 @@ class DecompositionRule:
 
 
 class ReassemblyRule:
-    def __init__(self, reassembly_parts, link=None):
+    def __init__(self, reassembly_parts, link):
         self._parts = reassembly_parts
-        self._link = None
+        self._link = link
 
     def __str__(self) -> str:
-        return " ".join([f"{p}" for p in self._parts])
+        ret = ""
+        if self._parts is not None:
+            ret = " ".join([f"{p}" for p in self._parts])
+            if self._link is not None:
+                ret += f" & link to '{self._link}'"
+        return ret
 
     def apply(self, decomposed_phrase):
         if self._parts is None:
@@ -99,22 +106,6 @@ class ReassemblyRule:
             else:
                 new_phrase.extend(part)
         return self._link, ProcessingPhrase(new_phrase)
-
-
-class SimpleLinkReassemblyRule(ReassemblyRule):
-    def __init__(self, link):
-        super().__init__(None, link)
-
-    def __str__(self) -> str:
-        return f"link to {self._parts}"
-
-
-class TransFormLinkReassemblyRule(SimpleLinkReassemblyRule):
-    def __init__(self, reassembly_parts):
-        super().__init__([0])
-
-    def __str__(self) -> str:
-        return f"transform link to {self._parts}"
 
 
 @dataclasses.dataclass
