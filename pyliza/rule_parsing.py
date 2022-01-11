@@ -3,8 +3,7 @@ import re
 import typing
 from typing import Optional, Tuple
 
-from . import utils
-from . import ruleset
+from . import utils, ruleset, transformation, processing
 from .ruleset import RuleSet, RuleType, ElizaRule
 from .transformation import TransformRule, DecompositionRule, ReassemblyRule
 
@@ -123,7 +122,7 @@ class RuleParser:
             RuleType.NONE: TransformationParser,
             RuleType.TRANSFORMATION: TransformationParser,
             RuleType.UNCONDITIONAL_SUBSTITUTION: UnconditionalSubstitutionParser,
-            RuleType.DLIST: DListParser,
+            RuleType.WORD_TAGGING: WordTaggingParser,
             RuleType.EQUIVALENCE: EquivalenceParser,
             RuleType.MEMORY: MemoryParser,
         }
@@ -140,7 +139,7 @@ class RuleParser:
         if not instructions and substitution is not None:
             return RuleType.UNCONDITIONAL_SUBSTITUTION
         if cls.dlist_re.match(instructions):
-            return RuleType.DLIST
+            return RuleType.WORD_TAGGING
         if cls.equivalence_re.match(instructions):
             return RuleType.EQUIVALENCE
         return RuleType.TRANSFORMATION
@@ -181,9 +180,31 @@ class DecompositionParser:
 
 
 class ReassemblyParser:
+    rule_re = re.compile(r"(\d)")
+    linkage_re = re.compile(r"=\S+")
+    transform_linkage_re = re.compile(r"PRE\s.*?\(=\S+\)$")
+
     @classmethod
     def parse(cls, text) -> ReassemblyRule:
-        return ruleset.ReassemblyRule()
+        if cls.linkage_re.match(text):
+            return transformation.SimpleLinkReassemblyRule(text[1:])
+        if cls.transform_linkage_re.match(text):
+            return transformation.TransFormLinkReassemblyRule(text)
+
+        return cls._parse_standard(text)
+
+    @classmethod
+    def _parse_standard(cls, text):
+        def _convert(part):
+            try:
+                return int(part)
+            except ValueError:
+                return [processing.ProcessingWord(w) for w in part.split()]
+
+        assembly_parts = list(
+            map(_convert, filter(len, map(str.strip, cls.rule_re.split(text))))
+        )
+        return ruleset.ReassemblyRule(assembly_parts)
 
 
 class _RuleInstructionParser:
@@ -216,7 +237,7 @@ class UnconditionalSubstitutionParser(_RuleInstructionParser):
         return ruleset.UnconditionalSubstitution(substitution, precedence)
 
 
-class DListParser(_RuleInstructionParser):
+class WordTaggingParser(_RuleInstructionParser):
     dlist_re = re.compile(r"\s*DLIST\(/")
 
     @classmethod

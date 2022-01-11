@@ -1,7 +1,17 @@
 import logging
 import typing
+import enum
 
 from .eliza import Eliza
+
+
+class TerminalColours:
+    ELIZA = 96
+    USER = 95
+
+
+def print_colour(text: str, colour_code: int, *args, **kwargs):
+    print(f"\033[{colour_code}m" + text + f"\033[0m", *args, **kwargs)
 
 
 def simulate(script: typing.Iterable[str], conversation: typing.Iterable[str]):
@@ -10,12 +20,13 @@ def simulate(script: typing.Iterable[str], conversation: typing.Iterable[str]):
     log.info("starting up Pyliza conversation simulator")
 
     eliza = Eliza(script)
-    eliza.greet()
+    print_colour(eliza.greet(), TerminalColours.ELIZA, end="")
     for line in map(str.strip, conversation):
         if not line or line.startswith("#"):
             continue
-        print(line)
-        print(eliza.respond_to(line), end="")
+        # eliza.respond_to(line)
+        print_colour(line, TerminalColours.USER)
+        print_colour(eliza.respond_to(line), TerminalColours.ELIZA, end="")
 
 
 def run_commandline(script: typing.Iterable[str]):

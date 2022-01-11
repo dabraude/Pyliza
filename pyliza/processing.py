@@ -42,10 +42,14 @@ class ProcessingWord:
 
 
 class ProcessingPhrase:
-    def __init__(self, phrase: str) -> None:
-        self._words: typing.List[ProcessingWord] = list(
-            map(ProcessingWord, phrase.strip().split())
-        )
+    def __init__(self, phrase: typing.Union[str, typing.List[ProcessingWord]]) -> None:
+        self._words: typing.List[ProcessingWord] = None
+        if isinstance(phrase, str):
+            self._words: typing.List[ProcessingWord] = list(
+                map(ProcessingWord, phrase.strip().split())
+            )
+        else:
+            self._words = phrase[:]
         self._iter_pos = 0
 
     def to_string(self):

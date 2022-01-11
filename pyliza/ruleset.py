@@ -1,6 +1,7 @@
 import dataclasses
 import enum
 import logging
+import random
 import typing
 
 from .transformation import DecompositionRule, ReassemblyRule, TransformRule
@@ -12,7 +13,7 @@ class RuleType(enum.Enum):
     UNKNOWN = 0
     TRANSFORMATION = 1
     UNCONDITIONAL_SUBSTITUTION = 2
-    DLIST = 3
+    WORD_TAGGING = 3
     EQUIVALENCE = 4
     # rule type 5: pre transform equivalence is actually just a vanilla transform
     # with a special reassambly rule
@@ -41,8 +42,10 @@ class ElizaRule:
         word.word = self._substitution
         return True
 
-    def apply_transform(self, word: ProcessingWord, phrase: ProcessingPhrase):
-        return None
+    def apply_transform(
+        self, word: ProcessingWord, phrase: ProcessingPhrase
+    ) -> typing.Tuple[typing.Optional[str], ProcessingPhrase]:
+        return None, None
 
 
 class Transformation(ElizaRule):
@@ -60,9 +63,13 @@ class Transformation(ElizaRule):
         self._log.debug(f"applying transform triggered by keyword: {word}")
         for trule in self._transformation_rules:
             decomposed = trule.decompose.match(phrase)
-            # print(decomposed)
+            if decomposed is not None:
+                reassembly = random.choice(trule.reassemble)
+                self._log.debug(f"applying reassembly rule: {reassembly}")
+                linked_rule, phrase = reassembly.apply(decomposed)
+                break
 
-        return linked_rule
+        return linked_rule, phrase
 
 
 class UnconditionalSubstitution(ElizaRule):
@@ -100,11 +107,11 @@ class Equivalence(ElizaRule):
             )
         self.equivalent_keyword = ProcessingWord(equivalent_keyword)
 
-    def apply_transform(self, word, _):
+    def apply_transform(self, word, phrase):
         self._log.debug(
             f"replacing rule for {word} with rule for {self.equivalent_keyword}"
         )
-        return self.equivalent_keyword
+        return self.equivalent_keyword, phrase
 
 
 class Memory(ElizaRule):
@@ -154,8 +161,11 @@ class RuleSet:
         self._log.info(
             f'found {len(keystack)} unprocessed keyword(s) and made {substitution_count} substitution(s) in "{phrase}"'
         )
+        self._log.debug(
+            f'after substitutions phrase is "{processing_phrase.to_string()}"'
+        )
 
-        self._apply_keystack(processing_phrase, keystack)
+        processing_phrase = self._apply_keystack(processing_phrase, keystack)
 
         self._log.debug(f"finished building response")
         return processing_phrase.to_string()
@@ -194,7 +204,8 @@ class RuleSet:
     def _apply_keystack(self, phrase: ProcessingPhrase, keystack: KeyStack_t):
         while keystack:
             top = keystack.pop(0)
-            linked_rule_key = top.rule.apply_transform(top.word, phrase)
+            linked_rule_key, phrase = top.rule.apply_transform(top.word, phrase)
+
             if linked_rule_key is not None:
                 linked_rule = self.rules.get(linked_rule_key)
                 if linked_rule is not None:
@@ -204,4 +215,4 @@ class RuleSet:
                     self._log.error(
                         f"could not find linked rule with key: {linked_rule_key}"
                     )
-                continue
+        return phrase
