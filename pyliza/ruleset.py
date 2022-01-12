@@ -68,7 +68,8 @@ class Transformation(ElizaRule):
             )
             decomposed = trule.decompose.match(phrase)
             if decomposed is not None:
-                reassembly = random.choice(trule.reassemble)
+                # reassembly = random.choice(trule.reassemble) # uncomment to be random
+                reassembly = trule.get_reassemble()
                 linked_rule, phrase = reassembly.apply(decomposed)
                 self._log.debug(
                     f"applied reassembly rule: {reassembly}\n\tphrase is now: {phrase}"

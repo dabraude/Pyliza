@@ -112,3 +112,9 @@ class ReassemblyRule:
 class TransformRule:
     decompose: DecompositionRule
     reassemble: typing.Iterable[ReassemblyRule]
+    _reassemble_idx: int = 0
+
+    def get_reassemble(self):
+        res = self.reassemble[self._reassemble_idx]
+        self._reassemble_idx = (self._reassemble_idx + 1) % len(self.reassemble)
+        return res
