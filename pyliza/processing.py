@@ -10,6 +10,9 @@ class ProcessingWord:
     def __init__(self, word) -> None:
         self.word: str = word
         self.tags: typing.List[str] = []
+        if isinstance(word, ProcessingWord):
+            self.word = word.word
+            self.tags = word.tags
 
     def __str__(self) -> str:
         return self.word + "(" + ",".join(self.tags) + ")"

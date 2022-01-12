@@ -21,9 +21,11 @@ class ScriptParser:
                 "missing 'START' keyword to indicate the start of the rule set and end of greetings."
             )
         greetings = cls._parse_greetings(greetings_text)
-        rules = cls._parse_rules(rules_text)
-        log.info(f"loaded {len(greetings)} greetings and {len(rules)} rules.")
-        return RuleSet(greetings, rules)
+        rules, memory_rules = cls._parse_rules(rules_text)
+        log.info(
+            f"loaded {len(greetings)} greetings, {len(rules)} rules, and {len(memory_rules)} memory rules."
+        )
+        return RuleSet(greetings, rules, memory_rules)
 
     @classmethod
     def _strip_script(cls, script: typing.Iterable[str]) -> str:
@@ -50,10 +52,13 @@ class ScriptParser:
     def _parse_rules(cls, rules_text: str) -> typing.Mapping[str, ElizaRule]:
         """Parse the text of the rules."""
         rules = {}
+        memory_rules = []
         for rule_text in utils.bracket_iter(rules_text):
             keyword, rule = RuleParser.parse(rule_text)
+            if isinstance(rule, ruleset.Memory):
+                memory_rules.append((keyword, rule))
             rules[keyword] = rule
-        return rules
+        return rules, memory_rules
 
 
 class RuleParser:
@@ -280,5 +285,5 @@ class MemoryParser(_RuleInstructionParser):
             decomposition_text, reassembly_text = memory_pattern.split("=")
             decomposition = DecompositionParser.parse(decomposition_text)
             reassembly = ReassemblyParser.parse(reassembly_text)
-            memories.append((decomposition, reassembly))
+            memories.append(TransformRule(decomposition, [reassembly]))
         return ruleset.Memory(substitution, precedence, memories)

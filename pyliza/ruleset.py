@@ -1,7 +1,7 @@
+import collections
 import dataclasses
 import enum
 import logging
-import random
 import typing
 
 from .transformation import DecompositionRule, ReassemblyRule, TransformRule
@@ -15,9 +15,9 @@ class RuleType(enum.Enum):
     UNCONDITIONAL_SUBSTITUTION = 2
     WORD_TAGGING = 3
     EQUIVALENCE = 4
+    MEMORY = 6
     # rule type 5: pre transform equivalence is actually just a vanilla transform
     # with a special reassambly rule
-    MEMORY = 6
 
 
 class ElizaRule:
@@ -45,7 +45,7 @@ class ElizaRule:
     def apply_transform(
         self, word: ProcessingWord, phrase: ProcessingPhrase
     ) -> typing.Tuple[typing.Optional[str], ProcessingPhrase]:
-        return None, None
+        return None, phrase
 
 
 class Transformation(ElizaRule):
@@ -59,26 +59,14 @@ class Transformation(ElizaRule):
         self._transformation_rules = transformation_rules
 
     def apply_transform(self, word, phrase):
-        linked_rule = None
         self._log.info(f"applying transform triggered by keyword: {word}")
         self._log.debug(f"finding decomposition for {phrase}")
         for trule in self._transformation_rules:
-            self._log.debug(
-                f"attempting to match against decomposition rule: {trule.decompose}"
-            )
-            decomposed = trule.decompose.match(phrase)
-            if decomposed is not None:
-                # reassembly = random.choice(trule.reassemble) # uncomment to be random
-                reassembly = trule.get_reassemble()
-                linked_rule, phrase = reassembly.apply(decomposed)
-                self._log.debug(
-                    f"applied reassembly rule: {reassembly}\n\tphrase is now: {phrase}"
-                )
-                if linked_rule:
-                    self._log.debug(f"reassembly rule linked to: {linked_rule}")
-                return linked_rule, phrase
+            lrule, new_phrase = trule.apply(phrase)
+            if new_phrase is not None:
+                return lrule, new_phrase
         self._log.debug("no decomposition rules matched, word may have been removed")
-        return linked_rule, phrase
+        return None, phrase
 
 
 class UnconditionalSubstitution(ElizaRule):
@@ -126,29 +114,39 @@ class Memory(ElizaRule):
         self,
         substitution: None,
         precedence: int,
-        memories: typing.Iterable[typing.Tuple[DecompositionRule, ReassemblyRule]],
+        memory_rules: typing.Iterable[TransformRule],
     ) -> None:
         super().__init__(substitution, precedence)
-        self._memories = memories
-        for (dec, rss) in self._memories:
-            if not isinstance(dec, DecompositionRule) or not isinstance(
-                rss, ReassemblyRule
-            ):
-                raise ValueError(
-                    "memories must be a list of tuples, (DecompositionRule, ReassemblyRule)"
-                )
+        self._rules = memory_rules
+        self._memories = []
+        for mem_rule in self._rules:
+            if not isinstance(mem_rule, TransformRule):
+                raise ValueError("memories must be a list of TransformRules")
 
-    def apply_transform(
-        self, word: ProcessingWord, phrase: ProcessingPhrase
-    ) -> typing.Tuple[typing.Optional[str], ProcessingPhrase]:
-        self._log.info("adding to memory")
-        return None, None
+    def memorise(self, phrase: ProcessingPhrase) -> bool:
+        for mem_rule in self._rules:
+            _, new_phrase = mem_rule.apply(phrase)
+            if new_phrase is not None:
+                self._log.debug("memorised phrased.")
+                self._memories.append(new_phrase)
+                return True
+        return False
+
+    def recall(self) -> str:
+        try:
+            return self._memories.pop(0)
+        except IndexError:
+            return ""
 
 
 @dataclasses.dataclass
 class KeyStackedWord:
     word: ProcessingWord
     rule: ElizaRule
+    org_word: ProcessingWord = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        self.org_word = ProcessingWord(self.word)
 
 
 KeyStack_t = typing.List[KeyStackedWord]
@@ -158,19 +156,28 @@ class RuleSet:
     _log = logging.getLogger("RuleSet")
 
     def __init__(
-        self, greetings: typing.List[str], rules: typing.Mapping[str, ElizaRule]
+        self,
+        greetings: typing.List[str],
+        rules: typing.Mapping[str, ElizaRule],
+        memory_rules: typing.List[typing.Tuple[str, Memory]],
     ):
         self.greetings = greetings
         self.rules = {ProcessingWord(w): r for w, r in rules.items()}
+        self.memory_rules = collections.OrderedDict(
+            [(ProcessingWord(w), r) for w, r in memory_rules]
+        )
+        self._none_rule: Transformation = self.rules[ProcessingWord("NONE")]
 
     def get_response_for(self, phrase) -> typing.Optional[str]:
         """Build a response for a phrase or return None if not possible."""
         processing_phrase = ProcessingPhrase(phrase)
-        substitution_count, keystack = self._build_keystack(processing_phrase)
+        substitution_count, keystack, memory_keystack = self._build_keystacks(
+            processing_phrase
+        )
+        self._memorise(memory_keystack, processing_phrase)
         if not substitution_count and not keystack:
             self._log.debug(f'no keywords in "{phrase}"')
             return None
-
         self._log.info(
             f'found {len(keystack)} unprocessed keyword(s) and made {substitution_count} substitution(s) in "{phrase}"'
         )
@@ -183,20 +190,43 @@ class RuleSet:
         self._log.debug(f"finished building response")
         return processing_phrase.to_string()
 
-    def get_no_keyword_reponse(self):
-        """Figure out a response if there were no keywords in the user input."""
-        # Memory
-        # None
-        return "---"
+    def _memorise(self, memory_keystack: KeyStack_t, phrase: ProcessingPhrase):
+        """Add to memorised rules."""
+        self._log.info(f"{len(memory_keystack)} memory rules have been activated.")
+        for mem in memory_keystack:
+            self._log.debug(f"attempting to add memory for {mem.org_word}")
+            if not mem.rule.memorise(phrase):
+                self._log.debug("no available decompisition rules.")
 
-    def _build_keystack(
+    def get_no_keyword_reponse(self) -> str:
+        """Figure out a response if there were no keywords in the user input."""
+        response = self._get_memory_response()
+        if not response:
+            response = self._get_none_response()
+        return response
+
+    def _get_memory_response(self) -> str:
+        for mem_rule in self.memory_rules.values():
+            response = mem_rule.recall()
+            if response:
+                return response.to_string()
+        return ""
+
+    def _get_none_response(self) -> str:
+        _, phrase = self._none_rule.apply_transform(None, ProcessingPhrase(""))
+        return phrase.to_string()
+
+    def _build_keystacks(
         self, phrase: ProcessingPhrase
-    ) -> typing.Tuple[int, KeyStack_t]:
+    ) -> typing.Tuple[int, KeyStack_t, KeyStack_t]:
         """Determine the keystack in the precedence order and tags the words."""
         keystack = []
+        memory_keystack = []
         substitution_count = 0
         top_precedence = 0  # sorting is not straightforward
-        for idx, word in enumerate(phrase):
+        for word in phrase:
+            if word in self.memory_rules:
+                memory_keystack.append(KeyStackedWord(word, self.memory_rules[word]))
             if word not in self.rules:
                 continue
             rule = self.rules[word]
@@ -212,7 +242,7 @@ class RuleSet:
                 top_precedence = rule.precedence
             else:
                 keystack.append(KeyStackedWord(word, rule))
-        return substitution_count, keystack
+        return substitution_count, keystack, memory_keystack
 
     def _apply_keystack(self, phrase: ProcessingPhrase, keystack: KeyStack_t):
         while keystack:

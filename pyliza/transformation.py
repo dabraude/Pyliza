@@ -112,9 +112,31 @@ class ReassemblyRule:
 class TransformRule:
     decompose: DecompositionRule
     reassemble: typing.Iterable[ReassemblyRule]
-    _reassemble_idx: int = 0
+    _reassemble_idx: int = dataclasses.field(init=False)
+    _log: logging.Logger = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        self._reassemble_idx = 0
+        self._log = logging.getLogger("transform_rule")
 
     def get_reassemble(self):
         res = self.reassemble[self._reassemble_idx]
         self._reassemble_idx = (self._reassemble_idx + 1) % len(self.reassemble)
         return res
+
+    def apply(self, phrase):
+        self._log.debug(
+            f"attempting to match against decomposition rule: {self.decompose}"
+        )
+        decomposed = self.decompose.match(phrase)
+        if decomposed is None:
+            return None, None
+
+        reassembly = self.get_reassemble()
+        linked_rule, phrase = reassembly.apply(decomposed)
+        self._log.debug(
+            f"applied reassembly rule: {reassembly}\n\tphrase is now: {phrase}"
+        )
+        if linked_rule:
+            self._log.debug(f"reassembly rule linked to: {linked_rule}")
+        return linked_rule, phrase
