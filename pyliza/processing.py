@@ -53,7 +53,6 @@ class ProcessingPhrase:
             )
         else:
             self._words = phrase[:]
-        self._iter_pos = 0
 
     def to_string(self):
         return " ".join([f"{w.word}" for w in self._words])
@@ -63,3 +62,6 @@ class ProcessingPhrase:
 
     def __str__(self):
         return " ".join([f"{w}" for w in self._words])
+
+    def __repr__(self):
+        return "'" + " ".join([f"{w}" for w in self._words]) + "'"

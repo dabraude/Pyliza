@@ -4,16 +4,20 @@ import typing
 
 from .processing import ProcessingPhrase, WordMatch_t
 
+DecompositionPattern_t = typing.List[typing.Union[int, WordMatch_t]]
+
 
 class DecompositionRule:
     _log = logging.getLogger("decompose")
 
-    def __init__(self, decompostion_parts: typing.List[typing.Union[int, WordMatch_t]]):
+    def __init__(self, decompostion_parts: DecompositionPattern_t):
         if not decompostion_parts:
             raise ValueError("decomposition needs at least one part")
         self._parts = decompostion_parts
 
-    def match(self, phrase: ProcessingPhrase) -> typing.Union[None, typing.List[str]]:
+    def decompose(
+        self, phrase: ProcessingPhrase
+    ) -> typing.Union[None, typing.List[str]]:
         """Attempt to decompose the user input, return None if cannot."""
         match_part, *remaining_parts = self._parts
         decomposed = [[]]
@@ -128,7 +132,7 @@ class TransformRule:
         self._log.debug(
             f"attempting to match against decomposition rule: {self.decompose}"
         )
-        decomposed = self.decompose.match(phrase)
+        decomposed = self.decompose.decompose(phrase)
         if decomposed is None:
             return None, None
 
