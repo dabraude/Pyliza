@@ -73,28 +73,32 @@ class DecompositionRule:
             return None
         if len(unprocessed) < sum(int_parts):
             return None
-        pre0, pst0, has0 = self._split_by_0(int_parts)
+
         decomposed = []
-        unprocessed = self._get_elements(pre0, decomposed, unprocessed)
-        if not pst0:
-            if has0:
-                decomposed.append(unprocessed)
-            return decomposed
-
-        num0s = len(unprocessed) - sum(pst0)
-        if has0 and not num0s:
-            decomposed.append([])
-
-        decomposed.append(unprocessed[:num0s])
-        unprocessed = unprocessed[num0s:]
-        self._get_elements(pst0, decomposed, unprocessed)
+        pre0, pst0, has0 = self._split_by_0(int_parts)
+        unprocessed = self._add_elements(pre0, decomposed, unprocessed)
+        unprocessed = self._add_for_0(has0, pre0, pst0, decomposed, unprocessed)
+        self._add_elements(pst0, decomposed, unprocessed)
         return decomposed
 
-    def _get_elements(self, parts, decomposed, unprocessed):
-        if parts is not None:
-            for v in parts:
-                decomposed.append(unprocessed[:v])
-                unprocessed = unprocessed[v:]
+    def _add_for_0(self, has0, pre0, pst0, decomposed, unprocessed):
+        if not has0:
+            return unprocessed
+
+        if pst0:
+            num0s = len(unprocessed) - sum(pst0)
+            decomposed.append(unprocessed[:num0s])
+            return unprocessed[num0s:]
+
+        decomposed.append(unprocessed)
+        return []
+
+    def _add_elements(self, parts, decomposed, unprocessed):
+        if not parts or not unprocessed:
+            return unprocessed
+        for v in parts:
+            decomposed.append(unprocessed[:v])
+            unprocessed = unprocessed[v:]
         return unprocessed
 
     def _split_by_0(self, int_parts):

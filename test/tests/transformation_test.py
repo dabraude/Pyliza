@@ -15,16 +15,29 @@ from pyliza.transformation import (
 )
 
 
+def new_words_strat(used_words=None, return_processing=False):
+    if used_words is None:
+        used_words = []
+    strat = (
+        st.from_regex(r"\w+", fullmatch=True)
+        .filter(lambda s: re.match(r"\(/", s) is None)
+        .filter(lambda s: s not in used_words)
+    )
+    if return_processing:
+        return strat.map(ProcessingWord)
+    return strat
+
+
 @st.composite
 def decomposition_pattern_strat(draw: st.DrawFn) -> DecompositionPattern_t:
     """Make a valid decomposition pattern."""
     int_strat = st.integers(min_value=0, max_value=10)
-    str_strat = st.from_regex(r"\S+").filter(lambda s: re.match(r"\(/", s) is None)
-    # tag_strat = st.from_regex(r"\(/\S+\)")
-    set_strat = st.sets(str_strat, min_size=1)
+    str_strat = new_words_strat()
+    tag_strat = new_words_strat()
+    set_strat = st.sets(new_words_strat(), min_size=1)
 
     initial_pattern = draw(
-        st.lists(st.one_of(int_strat, str_strat, set_strat), min_size=1)
+        st.lists(st.one_of(int_strat, str_strat, tag_strat, set_strat), min_size=1)
     )
     pattern = []
     int_pattern = []
@@ -58,23 +71,17 @@ def decomposition_strat(
         if isinstance(element, set):
             used_words.update(element)
 
-    new_words_strat = (
-        st.from_regex(r"\S+")
-        .filter(lambda s: re.match(r"\(/", s) is None)
-        .filter(lambda s: s not in used_words)
-        .map(ProcessingWord)
-    )
-
+    nw_strat = new_words_strat(used_words, True)
     decomposed_phrase = []
     for element in pattern:
         if element == 0:
             nwords = draw(st.integers(min_value=0, max_value=10))
             decomposed_phrase.append(
-                draw(st.lists(new_words_strat, min_size=nwords, max_size=nwords))
+                draw(st.lists(nw_strat, min_size=nwords, max_size=nwords))
             )
         elif isinstance(element, int):
             decomposed_phrase.append(
-                draw(st.lists(new_words_strat, min_size=element, max_size=element))
+                draw(st.lists(nw_strat, min_size=element, max_size=element))
             )
         elif isinstance(element, str):
             decomposed_phrase.append([ProcessingWord(element)])
@@ -90,7 +97,10 @@ def decomposition_strat(
 
 class DecompositionTestCase(unittest.TestCase):
     @given(decomposition_strat())
-    def test_decompose(self, eg):
+    def test_decompose(
+        self,
+        eg,
+    ):
         """Decomposition will correctly decompose a phrase."""
         pattern, decomposed_phrase, phrase = eg
         rule = DecompositionRule(pattern)
