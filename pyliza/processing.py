@@ -24,7 +24,11 @@ class ProcessingWord:
         return self.word.__hash__()
 
     def __eq__(self, other) -> bool:
-        return self.word == other.word
+        if isinstance(other, str):
+            return self.word == other
+        if isinstance(other, ProcessingWord):
+            return self.word == other.word
+        return False
 
     def __ne__(self, other) -> bool:
         return not (self == other)
