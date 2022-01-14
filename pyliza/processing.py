@@ -53,6 +53,14 @@ class ProcessingPhrase:
             )
         else:
             self._words = phrase[:]
+        for w in self._words:
+            if not isinstance(w, ProcessingWord):
+                raise ValueError(
+                    "A processing phrase should only have ProcessingWord in the resulting list"
+                )
+
+    def to_list(self):
+        return self._words[:]
 
     def to_string(self):
         return " ".join([f"{w.word}" for w in self._words])
@@ -65,3 +73,6 @@ class ProcessingPhrase:
 
     def __repr__(self):
         return "'" + " ".join([f"{w}" for w in self._words]) + "'"
+
+    def __len__(self):
+        return len(self._words)
