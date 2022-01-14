@@ -16,6 +16,10 @@ class DecompositionRule:
         self._parts = decompostion_parts
         self._min_len = sum([p if isinstance(p, int) else 1 for p in self._parts])
 
+    @property
+    def pattern(self):
+        return self._parts
+
     def decompose(
         self, phrase: ProcessingPhrase
     ) -> typing.Union[None, typing.List[str]]:
