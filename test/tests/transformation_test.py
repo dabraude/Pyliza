@@ -65,9 +65,11 @@ def decomposition_strat(
                 draw(st.lists(new_words_strat, min_size=element, max_size=element))
             )
         elif isinstance(element, str):
-            decomposed_phrase.append([element])
+            decomposed_phrase.append([ProcessingWord(element)])
         elif isinstance(element, set):
-            decomposed_phrase.append([draw(st.sampled_from(sorted(element)))])
+            decomposed_phrase.append(
+                [ProcessingWord(draw(st.sampled_from(sorted(element))))]
+            )
 
     phrase = ProcessingPhrase([w for d in decomposed_phrase for w in d])
 
