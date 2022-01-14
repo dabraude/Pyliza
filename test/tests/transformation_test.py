@@ -22,3 +22,13 @@ class DecompositionTestCase(unittest.TestCase):
         pattern, phrase = eg
         rule = DecompositionRule(pattern)
         self.assertIsNone(rule.decompose(phrase))
+
+    def test_bad_patterns(self):
+        """Check against some invalid inputs."""
+        self.assertRaises(ValueError, DecompositionRule, None)
+        self.assertRaises(ValueError, DecompositionRule, [])
+        self.assertRaises(ValueError, DecompositionRule, [None])
+        self.assertRaises(ValueError, DecompositionRule, [""])
+        self.assertRaises(ValueError, DecompositionRule, [0.99])
+        self.assertRaises(ValueError, DecompositionRule, [{0.99}])
+        self.assertRaises(ValueError, DecompositionRule, [{None}])

@@ -16,6 +16,23 @@ class DecompositionRule:
         self._parts = decompostion_parts
         self._min_len = sum([p if isinstance(p, int) else 1 for p in self._parts])
 
+        msg = "decomposition patterns consists only of int, str, or set(str)"
+        for part in self._parts:
+            if part is None:
+                raise ValueError(msg)
+            if isinstance(part, str):
+                if not part:
+                    raise ValueError("decomposition patterns cannot have blank strings")
+                continue
+            if isinstance(part, int):
+                continue
+            if isinstance(part, set):
+                for pp in part:
+                    if not isinstance(pp, str):
+                        raise ValueError(msg)
+                continue
+            raise ValueError(msg)
+
     @property
     def pattern(self):
         return self._parts

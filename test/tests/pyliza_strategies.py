@@ -9,9 +9,9 @@ from pyliza.transformation import DecompositionPattern_t
 
 def new_words(used_words=None, return_processing=False):
     if used_words is None:
-        used_words = []
+        used_words = set()
     strat = st.from_regex(r"[a-zA-Z]+", fullmatch=True).filter(
-        lambda s: s not in used_words
+        lambda s: s not in used_words | {"TAGGED_WORD", "NONE", "MEMORY"}
     )
     if return_processing:
         return strat.map(ProcessingWord)
@@ -19,11 +19,18 @@ def new_words(used_words=None, return_processing=False):
 
 
 @st.composite
+def tag_words(draw: st.DrawFn, used_words=None) -> Tuple[str, str]:
+    # as a bit of a hack
+    tag = draw(new_words(used_words))
+    return f"(/{tag})", tag
+
+
+@st.composite
 def decomposition_pattern(draw: st.DrawFn) -> Tuple[DecompositionPattern_t, Set[str]]:
     """Make a valid decomposition pattern."""
     int_strat = st.integers(min_value=0, max_value=10)
     str_strat = new_words()
-    tag_strat = new_words()
+    tag_strat = tag_words()
     set_strat = st.sets(new_words(), min_size=1)
 
     initial_pattern = draw(
@@ -31,29 +38,41 @@ def decomposition_pattern(draw: st.DrawFn) -> Tuple[DecompositionPattern_t, Set[
     )
     pattern = []
     int_pattern = []
+    used_words = set()
+
     # cannot have more than 1 zero in a section of integers otherwise it would
     # be ambigious
     for element in initial_pattern:
         if isinstance(element, int):
             int_pattern.append(element)
+            continue
+
+        while int_pattern.count(0) > 1:
+            int_pattern.remove(0)
+        pattern.extend(int_pattern)
+        int_pattern = []
+        if isinstance(element, tuple):
+            pattern.append(element[0])
+            used_words.add(element[1])
         else:
-            while int_pattern.count(0) > 1:
-                int_pattern.remove(0)
-            pattern.extend(int_pattern)
-            int_pattern = []
             pattern.append(element)
+            if isinstance(element, str):
+                used_words.add(element)
+            if isinstance(element, set):
+                used_words.update(element)
+
     while int_pattern.count(0) > 1:
         int_pattern.remove(0)
     pattern.extend(int_pattern)
 
-    used_words = set()
-    for element in pattern:
-        if isinstance(element, str):
-            used_words.add(element)
-        if isinstance(element, set):
-            used_words.update(element)
-
     return pattern, used_words
+
+
+def to_ProcessingWord(word: str) -> ProcessingWord:
+    if word.startswith("(/") and word.endswith(")"):
+        tag = word[2:-1].strip()
+        return ProcessingWord("TAGGED_WORD", [tag])
+    return ProcessingWord(word)
 
 
 @st.composite
@@ -76,7 +95,7 @@ def valid_decomposition(
                 draw(st.lists(nw_strat, min_size=element, max_size=element))
             )
         elif isinstance(element, str):
-            decomposed_phrase.append([ProcessingWord(element)])
+            decomposed_phrase.append([to_ProcessingWord(element)])
         elif isinstance(element, set):
             decomposed_phrase.append(
                 [ProcessingWord(draw(st.sampled_from(sorted(element))))]

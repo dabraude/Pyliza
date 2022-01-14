@@ -7,12 +7,14 @@ WordMatch_t = typing.Union[str, typing.Set[str]]
 class ProcessingWord:
     tag_re = re.compile(r"\(/(?P<tag>\S+)\)")
 
-    def __init__(self, word) -> None:
+    def __init__(self, word, tags=None) -> None:
         self.word: str = word
         self.tags: typing.List[str] = []
         if isinstance(word, ProcessingWord):
             self.word = word.word
-            self.tags = word.tags
+            self.tags = word.tags[:]
+        if tags is not None:
+            self.tags = tags[:]
 
     def __str__(self) -> str:
         return self.word + "(" + ",".join(self.tags) + ")"
