@@ -3,7 +3,7 @@ import sys
 import re
 import unittest
 from typing import Tuple, List
-from hypothesis import given, strategies as st
+from hypothesis import assume, given, strategies as st
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "../.."))
 import pyliza
@@ -55,21 +55,23 @@ def decomposition_pattern_strat(draw: st.DrawFn) -> DecompositionPattern_t:
     while int_pattern.count(0) > 1:
         int_pattern.remove(0)
     pattern.extend(int_pattern)
-    return pattern
 
-
-@st.composite
-def decomposition_strat(
-    draw: st.DrawFn,
-) -> Tuple[DecompositionPattern_t, List[List[ProcessingWord]]]:
-    """Make a decomposition and a phrase that should work."""
-    pattern = draw(decomposition_pattern_strat())
     used_words = set()
     for element in pattern:
         if isinstance(element, str):
             used_words.add(element)
         if isinstance(element, set):
             used_words.update(element)
+
+    return pattern, used_words
+
+
+@st.composite
+def valid_decomposition_strat(
+    draw: st.DrawFn,
+) -> Tuple[DecompositionPattern_t, List[List[ProcessingWord]], ProcessingPhrase]:
+    """Make a decomposition and a phrase that should work."""
+    pattern, used_words = draw(decomposition_pattern_strat())
 
     nw_strat = new_words_strat(used_words, True)
     decomposed_phrase = []
@@ -95,12 +97,34 @@ def decomposition_strat(
     return pattern, decomposed_phrase, phrase
 
 
+@st.composite
+def invalid_decomposition_strat(
+    draw: st.DrawFn,
+) -> Tuple[DecompositionPattern_t, ProcessingPhrase]:
+    """Make a decomposition and a phrase that should work."""
+    pattern, used_words = draw(decomposition_pattern_strat())
+    assume(pattern != [0])  # match anything pattern
+    nw_strat = new_words_strat(used_words, True)
+    decomposed_phrase = []
+    for element in pattern:
+        if element == 0:
+            continue
+        elif isinstance(element, int):
+            too_small = draw(st.integers(min_value=1, max_value=element))
+            size = element - too_small
+            decomposed_phrase.append(
+                draw(st.lists(nw_strat, min_size=size, max_size=size))
+            )
+        elif isinstance(element, str) or isinstance(element, set):
+            decomposed_phrase.append([draw(nw_strat)])
+
+    phrase = ProcessingPhrase([w for d in decomposed_phrase for w in d])
+    return pattern, phrase
+
+
 class DecompositionTestCase(unittest.TestCase):
-    @given(decomposition_strat())
-    def test_decompose(
-        self,
-        eg,
-    ):
+    @given(valid_decomposition_strat())
+    def test_decompose(self, eg):
         """Decomposition will correctly decompose a phrase."""
         pattern, decomposed_phrase, phrase = eg
         rule = DecompositionRule(pattern)
@@ -108,3 +132,10 @@ class DecompositionTestCase(unittest.TestCase):
         self.assertEqual(len(decomposed_phrase), len(decomposed))
         for real, dec in zip(decomposed_phrase, decomposed):
             self.assertEqual(real, dec)
+
+    @given(invalid_decomposition_strat())
+    def test_no_match_decompose(self, eg):
+        """Decomposition will return None if the phrase doesn't work."""
+        pattern, phrase = eg
+        rule = DecompositionRule(pattern)
+        self.assertIsNone(rule.decompose(phrase))

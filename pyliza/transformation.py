@@ -46,6 +46,9 @@ class DecompositionRule:
             else:
                 unprocessed.append(word)
 
+        if next_keyword:
+            return None
+
         decomposed_from_int = self._decompose_int_parts(unprocessed, int_parts)
         if decomposed_from_int is not None:
             decomposed.extend(decomposed_from_int)
