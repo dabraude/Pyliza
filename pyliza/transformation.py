@@ -31,9 +31,6 @@ class DecompositionRule:
 
         unprocessed = []
         decomposed = []
-
-        # print(next_keyword, int_parts, unprocessed, decomposed)
-
         for word in phrase:
             if next_keyword is not None and word.matches(next_keyword):
                 decomposed_from_int = self._decompose_int_parts(unprocessed, int_parts)
@@ -48,8 +45,6 @@ class DecompositionRule:
                 return None
             else:
                 unprocessed.append(word)
-
-        # print(next_keyword, int_parts, unprocessed, decomposed)
 
         decomposed_from_int = self._decompose_int_parts(unprocessed, int_parts)
         if decomposed_from_int is not None:
@@ -81,7 +76,6 @@ class DecompositionRule:
         pre0, pst0, has0 = self._split_by_0(int_parts)
         decomposed = []
         unprocessed = self._get_elements(pre0, decomposed, unprocessed)
-        # print(unprocessed, pre0, pst0, has0)
         if not pst0:
             if has0:
                 decomposed.append(unprocessed)
