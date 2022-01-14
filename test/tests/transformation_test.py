@@ -26,10 +26,22 @@ def decomposition_pattern_strat(draw: st.DrawFn) -> DecompositionPattern_t:
     initial_pattern = draw(
         st.lists(st.one_of(int_strat, str_strat, set_strat), min_size=1)
     )
-    pattern = initial_pattern[:1]
-    for element in initial_pattern[1:]:
-        if element != 0 or pattern[-1] != 0:
+    pattern = []
+    int_pattern = []
+    # cannot have more than 1 zero in a section of integers otherwise it would
+    # be ambigious
+    for element in initial_pattern:
+        if isinstance(element, int):
+            int_pattern.append(element)
+        else:
+            while int_pattern.count(0) > 1:
+                int_pattern.remove(0)
+            pattern.extend(int_pattern)
+            int_pattern = []
             pattern.append(element)
+    while int_pattern.count(0) > 1:
+        int_pattern.remove(0)
+    pattern.extend(int_pattern)
     return pattern
 
 
@@ -79,6 +91,7 @@ def decomposition_strat(
 class DecompositionTestCase(unittest.TestCase):
     @given(decomposition_strat())
     def test_decompose(self, eg):
+        """Decomposition will correctly decompose a phrase."""
         pattern, decomposed_phrase, phrase = eg
         rule = DecompositionRule(pattern)
         decomposed = rule.decompose(phrase)

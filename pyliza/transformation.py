@@ -14,75 +14,104 @@ class DecompositionRule:
         if not decompostion_parts:
             raise ValueError("decomposition needs at least one part")
         self._parts = decompostion_parts
+        self._min_len = sum([p if isinstance(p, int) else 1 for p in self._parts])
 
     def decompose(
         self, phrase: ProcessingPhrase
     ) -> typing.Union[None, typing.List[str]]:
         """Attempt to decompose the user input, return None if cannot."""
-        match_part, *remaining_parts = self._parts
-        decomposed = [[]]
+        if len(phrase) < self._min_len:
+            return None
+
+        remaining_parts = self._parts[:]
+        next_keyword, int_parts = self._advance_matching(remaining_parts)
+        if next_keyword is None and int_parts is None:
+            self._log.error("pattern was invalid")
+            return None
+
+        unprocessed = []
+        decomposed = []
+
+        # print(next_keyword, int_parts, unprocessed, decomposed)
+
         for word in phrase:
-            if isinstance(match_part, int):
-                match_part = self._match_int(
-                    word, match_part, remaining_parts, decomposed
-                )
+            if next_keyword is not None and word.matches(next_keyword):
+                decomposed_from_int = self._decompose_int_parts(unprocessed, int_parts)
+                unprocessed = []
+                if decomposed_from_int is not None:
+                    decomposed.extend(decomposed_from_int)
+                elif int_parts:
+                    return None
+                decomposed.append([word])
+                next_keyword, int_parts = self._advance_matching(remaining_parts)
+            elif not int_parts:
+                return None
             else:
-                match_part = self._match_WordMatch_t(
-                    word, match_part, remaining_parts, decomposed
-                )
-            if match_part is None:
-                break
-        if len(decomposed) == len(self._parts):
-            self._log.debug(
-                f"matched decomposition rule: {self}\n\tphrase is now: "
-                + " | ".join([f"{d}" for d in decomposed])
-            )
+                unprocessed.append(word)
+
+        # print(next_keyword, int_parts, unprocessed, decomposed)
+
+        decomposed_from_int = self._decompose_int_parts(unprocessed, int_parts)
+        if decomposed_from_int is not None:
+            decomposed.extend(decomposed_from_int)
+
+        self._log.debug(
+            f"matched decomposition rule: {self}\n\tphrase is now: "
+            + " | ".join([f"{d}" for d in decomposed])
+        )
+        return decomposed
+
+    def _advance_matching(self, remain):
+        if not remain:
+            return None, None
+        iparts = []
+        nxt = remain.pop(0)
+        while remain and isinstance(nxt, int):
+            iparts.append(nxt)
+            nxt = remain.pop(0)
+        if isinstance(nxt, int):
+            return None, iparts + [nxt]
+        return nxt, iparts
+
+    def _decompose_int_parts(self, unprocessed, int_parts):
+        if not int_parts:
+            return None
+        if len(unprocessed) < sum(int_parts):
+            return None
+        pre0, pst0, has0 = self._split_by_0(int_parts)
+        decomposed = []
+        unprocessed = self._get_elements(pre0, decomposed, unprocessed)
+        # print(unprocessed, pre0, pst0, has0)
+        if not pst0:
+            if has0:
+                decomposed.append(unprocessed)
             return decomposed
-        return None
+
+        num0s = len(unprocessed) - sum(pst0)
+        if has0 and not num0s:
+            decomposed.append([])
+
+        decomposed.append(unprocessed[:num0s])
+        unprocessed = unprocessed[num0s:]
+        self._get_elements(pst0, decomposed, unprocessed)
+        return decomposed
+
+    def _get_elements(self, parts, decomposed, unprocessed):
+        if parts is not None:
+            for v in parts:
+                decomposed.append(unprocessed[:v])
+                unprocessed = unprocessed[v:]
+        return unprocessed
+
+    def _split_by_0(self, int_parts):
+        try:
+            idx0 = int_parts.index(0)
+            return (int_parts[:idx0], int_parts[idx0 + 1 :], True)
+        except ValueError:
+            return (int_parts, None, False)
 
     def __str__(self):
         return " ".join(f"{pt}" for pt in self._parts)
-
-    def _match_int(self, word, match_part, remaining_parts, decomposed):
-        if match_part == 0:
-            return self._match_0(word, remaining_parts, decomposed)
-
-        decomposed[-1].append(word)
-        match_part -= 1
-        if match_part == 0:
-            if remaining_parts:
-                return remaining_parts.pop(0)
-            return None
-        return match_part
-
-    def _match_0(self, word, remaining_parts, decomposed):
-        if not remaining_parts:
-            decomposed[-1].append(word)
-            return 0
-        next_part = remaining_parts[0]
-
-        if word.matches(next_part):
-            decomposed.append([word])
-            remaining_parts.pop(0)
-            if remaining_parts:
-                match_part = remaining_parts.pop(0)
-                if isinstance(match_part, int):
-                    decomposed.append([])
-                return match_part
-            return None
-
-        decomposed[-1].append(word)
-        return 0
-
-    def _match_WordMatch_t(self, word, match_part, remaining_parts, decomposed):
-        if word.matches(match_part):
-            decomposed.append([word])
-            if remaining_parts:
-                match_part = remaining_parts.pop(0)
-                if isinstance(match_part, int):
-                    decomposed.append([])
-            return match_part
-        return None
 
 
 class ReassemblyRule:
