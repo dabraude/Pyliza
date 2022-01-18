@@ -1,7 +1,7 @@
 import typing
 import re
 
-WordMatch_t = typing.Union[str, typing.Set[str]]
+WordMatch_t = typing.Union["ProcessingWord", typing.Set["ProcessingWord"]]
 
 
 class ProcessingWord:
@@ -9,42 +9,55 @@ class ProcessingWord:
 
     def __init__(self, word, tags=None) -> None:
         self.word: str = word
-        self.tags: typing.List[str] = []
+        self.tags: typing.Set[set] = set()
         if isinstance(word, ProcessingWord):
             self.word = word.word
-            self.tags = word.tags[:]
+            self.tags = word.tags.copy()
+        elif word is not None and not isinstance(word, str):
+            raise ValueError(f"word must be None or str, not {type(word)}")
+
         if tags is not None:
-            self.tags = tags[:]
+            if not isinstance(tags, set) or any(
+                map(lambda s: not isinstance(s, str), tags)
+            ):
+                raise ValueError(f"tags must be None or a set of ProcessingWord")
+            self.tags = tags.copy()
+
+    def __neg__(self) -> bool:
+        return not self.word and not self.tags
 
     def __str__(self) -> str:
-        return self.word + "(" + ",".join(self.tags) + ")"
+        w = self.word if self.word is not None else "_"
+        return w + "(" + ",".join(self.tags) + ")"
 
     def __repr__(self) -> str:
         return self.__str__()
 
     def __hash__(self) -> int:
-        return self.word.__hash__()
+        return hash((self.word, tuple(sorted(self.tags))))
 
     def __eq__(self, other) -> bool:
         if isinstance(other, str):
             return self.word == other
         if isinstance(other, ProcessingWord):
-            return self.word == other.word
+            return self.word == other.word and self.tags == other.tags
         return False
 
     def __ne__(self, other) -> bool:
         return not (self == other)
 
+    def __lt__(self, other) -> bool:
+        if self.word == other.word:
+            return self.tags < other.tags
+        return self.word < other.word
+
     def matches(self, test: WordMatch_t) -> bool:
-        if isinstance(test, str):
+        if isinstance(test, ProcessingWord):
             return self._match(test)
         return any(map(self._match, test))
 
-    def _match(self, test: str):
-        tag_mobj = self.tag_re.match(test)
-        if tag_mobj is not None:
-            return self._match_tag(tag_mobj.group("tag"))
-        return self.word == test
+    def _match(self, test: "ProcessingWord"):
+        return self.word == test.word or (self.tags & test.tags)
 
     def _match_tag(self, tag_str: str):
         return tag_str in self.tags
@@ -82,3 +95,6 @@ class ProcessingPhrase:
 
     def __len__(self):
         return len(self._words)
+
+    def __getitem__(self, pos: int) -> ProcessingWord:
+        return self._words[pos]

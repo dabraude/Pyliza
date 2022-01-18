@@ -1,13 +1,19 @@
 import unittest
-from hypothesis import given
+from hypothesis import given, example
 
 from . import pyliza_strategies as liza_st
 from pyliza.transformation import DecompositionRule
+from pyliza.processing import ProcessingWord as PW
+from pyliza.processing import ProcessingPhrase as PPhrase
 
 
 class DecompositionTestCase(unittest.TestCase):
     @given(liza_st.valid_decomposition())
-    def test_decompose(self, eg):
+    @example(([0], [[]], PPhrase([])))
+    @example(([1, PW("A")], [[PW("A")], [PW("A")]], PPhrase([PW("A"), PW("A")])))
+    @example(([1], [[PW("A")]], PPhrase([PW("A")])))
+    @example(([0, PW("A")], [[], [PW("A")]], PPhrase([PW("A")])))
+    def test_matching(self, eg):
         """Decomposition will correctly decompose a phrase."""
         pattern, decomposed_phrase, phrase = eg
         rule = DecompositionRule(pattern)
@@ -17,8 +23,8 @@ class DecompositionTestCase(unittest.TestCase):
             self.assertEqual(real, dec)
 
     @given(liza_st.invalid_decomposition())
-    def test_no_match_decompose(self, eg):
-        """Decomposition will return None if the phrase doesn't work."""
+    def test_non_match(self, eg):
+        """Decomposition will return None if the phrase doesn't match the pattern."""
         pattern, phrase = eg
         rule = DecompositionRule(pattern)
         self.assertIsNone(rule.decompose(phrase))
@@ -32,3 +38,4 @@ class DecompositionTestCase(unittest.TestCase):
         self.assertRaises(ValueError, DecompositionRule, [0.99])
         self.assertRaises(ValueError, DecompositionRule, [{0.99}])
         self.assertRaises(ValueError, DecompositionRule, [{None}])
+        self.assertRaises(ValueError, DecompositionRule, [{""}])
